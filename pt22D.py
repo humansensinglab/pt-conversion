@@ -2,7 +2,6 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pymorton as pm
 from plyfile import PlyData
 
 
@@ -33,6 +32,20 @@ def load_ply(path):
     return np.hstack([xyz, features_dc, opacities, scales, rots])
 
 
+def MortonPart1By2(x):
+    x &= 0x1fffff
+    x ^= (x << 32) & 0x1f00000000ffff
+    x ^= (x << 16) & 0x1f0000ff0000ff
+    x ^= (x << 8) & 0x100f00f00f00f00f
+    x ^= (x << 4) & 0x10c30c30c30c30c3
+    x ^= (x << 2) & 0x1249249249249249
+    return x
+
+
+def MortonEncode3(x, y, z):
+    return (MortonPart1By2(z) << 2) | (MortonPart1By2(y) << 1) | (MortonPart1By2(x))
+
+
 def sort(ply_data):
     points = ply_data[:, :3]
     max_bound = points.max(axis=0)
@@ -43,7 +56,7 @@ def sort(ply_data):
     ipoints = ipoints.astype(int)
     mortoncode = []
     for ipoint in ipoints:
-        mortoncode.append(pm.interleave(*ipoint.tolist()))
+        mortoncode.append(MortonEncode3(*ipoint.tolist()))
 
     order = np.array(mortoncode).argsort()
     return ply_data[order]
@@ -54,7 +67,7 @@ def ply22D(ply_data: np.ndarray, n_rows: int = 50, n_cols: int = 50, chunk_w: in
     chunksize = chunk_w * chunk_h
     ply_data = sort(ply_data)
     n_channels = ply_data.shape[-1]
-    output = np.zeros((chunk_h * n_rows, chunk_w * n_cols, n_channels))
+    output = np.full((chunk_h * n_rows, chunk_w * n_cols, n_channels), -0, dtype=float)
     for i in range(len(ply_data) // chunksize):
         x, y = divmod(i, n_cols)
         x *= chunk_h
@@ -103,7 +116,7 @@ def visualize(ply_data: np.ndarray):
 
 if __name__ == '__main__':
     ply = load_ply('original_with_densification.ply')
-    results = ply22D(ply)
-    np.save('original_with_densification.npy', results)
+    results = ply22D(ply, n_rows=45, n_cols=45, chunk_w=16, chunk_h=16, rescale=True)
+    np.save('original_with_densification-1000.npy', results)
     normalize(results)
     visualize(results)
