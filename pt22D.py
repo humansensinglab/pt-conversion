@@ -1,8 +1,9 @@
 # Created by Baole Fang at 11/8/23
-
+import os
 import matplotlib.pyplot as plt
 import numpy as np
 from plyfile import PlyData
+import argparse
 
 
 def load_ply(path):
@@ -62,12 +63,12 @@ def sort(ply_data):
     return ply_data[order]
 
 
-def ply22D(ply_data: np.ndarray, n_rows: int = 50, n_cols: int = 50, chunk_w: int = 14, chunk_h: int = 14,
-           rescale: bool = False):
+def ply22D(ply_data: np.ndarray, fill: float = 0, n_rows: int = 50, n_cols: int = 50, chunk_w: int = 14,
+           chunk_h: int = 14, rescale: bool = False):
     chunksize = chunk_w * chunk_h
     ply_data = sort(ply_data)
     n_channels = ply_data.shape[-1]
-    output = np.full((chunk_h * n_rows, chunk_w * n_cols, n_channels), -0, dtype=float)
+    output = np.full((chunk_h * n_rows, chunk_w * n_cols, n_channels), fill, dtype=float)
     for i in range(len(ply_data) // chunksize):
         x, y = divmod(i, n_cols)
         x *= chunk_h
@@ -115,8 +116,26 @@ def visualize(ply_data: np.ndarray):
 
 
 if __name__ == '__main__':
-    ply = load_ply('original_with_densification.ply')
-    results = ply22D(ply, n_rows=45, n_cols=45, chunk_w=16, chunk_h=16, rescale=True)
-    np.save('original_with_densification-1000.npy', results)
-    normalize(results)
+    parser = argparse.ArgumentParser(prog='pt22D', description='convert 3d ply data to 2d maps')
+    parser.add_argument('-i', '--input', type=str, required=True, help='input ply path')
+    parser.add_argument('-o', '--output', type=str, default='./', help='output folder')
+    parser.add_argument('-f', '--fill', type=float, default=0, help='value to fill empty space')
+    parser.add_argument('-r', '--row', type=int, default=50, help='number of chunk rows')
+    parser.add_argument('-c', '--col', type=int, default=50, help='number of chunk columns')
+    parser.add_argument('-x', '--width', type=int, default=16, help='single chunk width')
+    parser.add_argument('-y', '--height', type=int, default=16, help='single chunk height')
+    parser.add_argument('-s', '--scale', action='store_true', help='whether to rescale in a chunk')
+    args = parser.parse_args()
+
+    ply = load_ply(args.input)
+    results = ply22D(
+        ply_data=ply,
+        fill=args.fill,
+        n_rows=args.row,
+        n_cols=args.col,
+        chunk_w=args.width,
+        chunk_h=args.height,
+        rescale=args.scale,
+    )
+    np.save(os.path.join(args.output, f'{os.path.basename(args.input)}_{args.fill}.npy'), results)
     visualize(results)
