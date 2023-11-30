@@ -30,7 +30,13 @@ def load_ply(path):
     rots = np.zeros((xyz.shape[0], len(rot_names)))
     for idx, attr_name in enumerate(rot_names):
         rots[:, idx] = np.asarray(plydata.elements[0][attr_name])
-    return np.hstack([xyz, features_dc, opacities, scales, rots])
+
+    extra_f_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("f_rest_")]
+    extra_f_names = sorted(extra_f_names, key=lambda x: int(x.split('_')[-1]))
+    features_extra = np.zeros((xyz.shape[0], len(extra_f_names)))
+    for idx, attr_name in enumerate(extra_f_names):
+        features_extra[:, idx] = np.asarray(plydata.elements[0][attr_name])
+    return np.hstack([xyz, features_dc, opacities, scales, rots, features_extra])
 
 
 def MortonPart1By2(x):
@@ -119,7 +125,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='pt22D', description='convert 3d ply data to 2d maps')
     parser.add_argument('-i', '--input', type=str, required=True, help='input ply path')
     parser.add_argument('-o', '--output', type=str, default='./', help='output folder')
-    parser.add_argument('-f', '--fill', type=float, default=0, help='value to fill empty space')
+    parser.add_argument('-f', '--fill', type=float, default=np.nan, help='value to fill empty space')
     parser.add_argument('-r', '--row', type=int, default=50, help='number of chunk rows')
     parser.add_argument('-c', '--col', type=int, default=50, help='number of chunk columns')
     parser.add_argument('-x', '--width', type=int, default=16, help='single chunk width')
